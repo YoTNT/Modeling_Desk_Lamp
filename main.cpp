@@ -1,170 +1,162 @@
-#include <gl/glut.h>
-#include <cmath>
+/********* Instruction***************/
+/*
+	Press f to fasten the animation.
+	Press s to slow down the animation.
+	Press t to turn on or off the lamp.
+*/
 
-GLint vert[100][2];
-GLint point[100][3];	// (x, y, in_out_side_mark)
-bool poly_finished = false;
-GLint vertex1[2], vertex2[2];
-int width = 700, height = 700, n = 0, m = 0,
-type = GL_LINE_STRIP, v;
-void display()
-{
-	glClear(GL_COLOR_BUFFER_BIT);
-	if (n == 1 && (type == GL_LINE_STRIP || type == GL_LINE_LOOP))
-	{
-		glBegin(GL_POINTS);
-			glVertex2iv(vert[0]);
-		glEnd();
+#include <GL/glut.h>
+
+GLfloat pos[] = { -2, 4, 5, 1 },
+		pos2[] = {0, 0, 999, 0},
+		amb[] = { 0.3, 0.3, 0.3, 1.0 };
+GLfloat front_amb_diff_off[] = { 0.6, 0.3, 0.2, 1.0 };
+GLfloat front_amb_diff_on[] = { 1.0, 1.0, 0, 0};
+GLfloat front_amb_diff2[] = { 0.9, 0.9, 0.9, 1.0 };
+GLfloat front_amb_diff3[] = { 0.4, 0.4, 0.4, 1.0 };
+GLfloat front_amb_diff4[] = { 0.7, 0.7, 0.7, 1.0 };
+GLfloat back_amb_diff[] = { 0.4, 0.7, 0.1, 1.0 };
+GLfloat spe[] = { 0.25, 0.25, 0.25, 1 };
+GLfloat theta = 0, dt = 0.1, axes[3][3] = { {1,0,0}, {0,1,0}, {0,0,1} };
+int axis = 0;
+bool turn_on = false;
+bool flag = true;
+
+void draw_cover(void) {
+	glPushMatrix();
+	if (!turn_on) {
+		glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, front_amb_diff_off);
+		glMaterialfv(GL_BACK, GL_AMBIENT_AND_DIFFUSE, front_amb_diff_off);
 	}
-	glBegin(type);
-	glColor3f(1.0, 1.0, 1.0);
-	for (int i = 0; i < n; i++)
-		glVertex2iv(vert[i]);
-	glEnd();
-	if (poly_finished)
-	{
-		glBegin(GL_POINTS);
-		for (int i = 0; i < m; i++)
-		{
-			if (point[i][2] == 1)
-				glColor3f(0.0, 1.0, 0.0);
-			else if (point[i][2] == -1)
-				glColor3f(1.0, 0.0, 0.0);
-			else
-				glColor3f(0.0, 0.0, 1.0);	// Error point will be drew as blue, but it
-											// will never happen, and its purpose is to
-											// close all the cases.
-			glVertex2iv(point[i]);
+	else {
+		glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, front_amb_diff_on);
+		glMaterialfv(GL_BACK, GL_AMBIENT_AND_DIFFUSE, front_amb_diff_on);
+	}
+	GLUquadricObj *quadObj;
+	quadObj = gluNewQuadric();
+	gluQuadricDrawStyle(quadObj, GLU_LINE);
+	gluCylinder(quadObj, 1.0, 0.5, 1.2, 360, 180);
+
+	glPopMatrix();
+}
+
+void draw_bulb(void) {
+	glPushMatrix();
+	if(!turn_on)
+		glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, front_amb_diff2);
+	else
+		glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, front_amb_diff_on);
+	GLUquadricObj *quadObj;
+	quadObj = gluNewQuadric();
+	gluQuadricDrawStyle(quadObj, GLU_FILL);
+	glTranslated(0, 0, 0.5);
+	gluSphere(quadObj, 0.35, 36, 30);
+
+	glPopMatrix();
+}
+
+void draw_cylinder(void) {
+	glPushMatrix();
+	glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, front_amb_diff3);
+	glTranslated(0, 0, -0.55);
+	glScaled(1, 1, 6);
+	glutSolidCube(0.3);
+	glPopMatrix();
+}
+
+void draw_base(void) {
+	glPushMatrix();
+
+	glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, front_amb_diff4);
+	glTranslated(0, 0, -1.5);
+	glutSolidTorus(0.1, 0.6, 48, 96);
+	glutSolidCone(0.65, 0.3, 40, 20);
+
+	glPopMatrix();
+}
+
+void draw_lamp(void) {
+	draw_cover();
+	draw_bulb();
+	draw_cylinder();
+	draw_base();
+}
+
+void display(void) {
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glPushMatrix();
+	if (axis < 3)
+		glRotated(theta, axes[axis][0], axes[axis][1], axes[axis][2]);
+	else {
+		if (!turn_on) {
+			glPushMatrix();
+			glRotated(theta, 0, 0, 1);
+			glLightfv(GL_LIGHT0, GL_POSITION, pos);
+			glPopMatrix();
 		}
-		glEnd();
 	}
+	if (turn_on) {
+		glPushMatrix();
+		glLightfv(GL_LIGHT0, GL_POSITION, pos2);
+		glPopMatrix();
+	}
+	draw_lamp();
+	glPopMatrix();
 	glutSwapBuffers();
 }
-void keyboard(unsigned char key, int x, int y)
-{
-	switch (key)
-	{
-		case 'r': n = 0;
-				m = 0;
-				type = GL_LINE_STRIP;
-				poly_finished = false;
+void idle(void) {
+	if (theta >= 360) axis = (axis + 1) % 4;
+	theta = (theta < 360) ? theta + dt : dt;
+	glutPostRedisplay();
+}
+
+void keyboard(unsigned char key, int x, int y) {
+	switch (key) {
+		case 't':
+			if (turn_on == false)
+				turn_on = true;
+			else
+				turn_on = false;
+			break;
+		case 'f':
+			if (dt >= 0.4)
 				break;
-		case 'c': type = GL_LINE_LOOP;
-				poly_finished = true;
+			else
+				dt += 0.1;
+			break;
+		case 's':
+			if (dt <= 0.1)
 				break;
+			else
+				dt -= 0.1;
+			break;
 	}
 	glutPostRedisplay();
 }
-int findVertex(int x, int y)
-{
-	int dx, dy;
-	for (int i = 0; i < n; i++)
-	{
-		dx = vert[i][0] - x;
-		dy = vert[i][1] - y;
-		if (dx*dx + dy * dy < 16)
-			return i;
-	}
-	return -1;
-}
-void calculate_vertices(int x, int y, int i, int j)
-{
-	int x1 = vert[i][0];
-	int y1 = vert[i][1];
-	int x2 = vert[j][0];
-	int y2 = vert[j][1];
-	vertex1[0] = x1 - x;
-	vertex1[1] = y1 - y;
-	vertex2[0] = x2 - x;
-	vertex2[1] = y2 - y;
-}
-double angle_value()
-{
-	int x1 = vertex1[0];
-	int y1 = vertex1[1];
-	int x2 = vertex2[0];
-	int y2 = vertex2[1];
-	double v1v2 = x1 * x2 + y1 * y2;	// Int -> Double
-	double v1_magnitute = sqrt(x1 * x1 + y1 * y1);
-	double v2_magnitute = sqrt(x2 * x2 + y2 * y2);
-	double cos = v1v2 / (v1_magnitute * v2_magnitute);
-	return acos(cos);
-}
-double angle_direction()
-{
-	int x1 = vertex1[0];
-	int y1 = vertex1[1];
-	int x2 = vertex2[0];
-	int y2 = vertex2[1];
-	int fact = x1 * y2 - x2 * y1;
-	if (fact > 0)
-		return 1.0;
-	else
-		return -1.0;
-}
-int is_inside(int x, int y)
-{
-	int front = 0;
-	int back = front + 1;
-	double temp_angle = 0;
-	double radian_sum = 0;
-	while (front < n)
-	{
-		calculate_vertices(x, y, front, back);
-		temp_angle = angle_value();
-		temp_angle *= angle_direction();
-		radian_sum += temp_angle;
-		front++;
-		back = front + 1;
-		if (back == n)
-			back = 0;
-	}
-	radian_sum = abs(radian_sum);
-	if (radian_sum > 6.283 && radian_sum < 6.284)	// Tolerance = 0.001
-		return 1;	// Inside
-	else if (radian_sum < 0.001)
-		return -1;	// Outside
-	else
-		return 0;	// Error mark, indicate the improper result
-}
-void mouse(int button, int state, int x, int y)
-{
-	switch (button)
-	{
-	case GLUT_LEFT_BUTTON:
-		if (state == GLUT_DOWN)
-		{
-			if (!poly_finished)
-			{
-				v = n++;
-				vert[v][0] = x;
-				vert[v][1] = height - 1 - y;
-			}
-			else
-			{
-				v = m++;
-				point[v][0] = x;
-				point[v][1] = height - 1 - y;
-				point[v][2] = is_inside(x, height - 1 - y);	// 1: insde, -1: outside, 0: ERROR
-			}
-			glutPostRedisplay();
-		}
-		break;
-	}
-}
-void main(int argc, char** argv)
-{
+
+void main(int argc, char** argv) {
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
-	glutInitWindowSize(width, height);
-	glutInitWindowPosition(50, 100);
-	glutCreateWindow("Project 3");
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+	glutInitWindowSize(600, 600);
+	glutInitWindowPosition(200, 100);
+	glutCreateWindow("GLUT Objects");
 	glClearColor(0.0, 0.0, 0.0, 0.0);
+	glEnable(GL_DEPTH_TEST);
+	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	gluOrtho2D(0, width, 0, height);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	gluPerspective(45, 1.0, 2, 8);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, spe);
+	glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 75);
+	glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	glTranslated(0, 0, -5);
+	glRotated(-55, 1, 0, 0);
+	glLightfv(GL_LIGHT0, GL_POSITION, pos);
+	glEnable(GL_LIGHTING);
+	glEnable(GL_LIGHT0);
 	glutDisplayFunc(display);
+	glutIdleFunc(idle);
 	glutKeyboardFunc(keyboard);
-	glutMouseFunc(mouse);
 	glutMainLoop();
 }
